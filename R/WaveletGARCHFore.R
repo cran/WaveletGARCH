@@ -17,7 +17,9 @@ WaveletGARCHFore<-function(series,filtern,level,nofore)
   ClusterExportData <- c("tsrss")
   series<-as.vector(series)
   tsrss<-NULL
-
+  dflag<-0
+  mod<-rep(c("no"),times=level+1)
+  modell<-{}
 
   ##############################################
   #         Fitting Auto GARCH                 #
@@ -74,6 +76,15 @@ WaveletGARCHFore<-function(series,filtern,level,nofore)
     GoodModel <- res[!sapply(res, is.null)]
 
     AICWithParam <- NULL
+    if(length(GoodModel)==0)
+    {
+
+      dflag=-1
+      return(NULL)
+    }
+    else
+    {
+
     for(i in 1:length(GoodModel)){
       temp <- data.frame(infocriteria(GoodModel[[i]])[1,],GoodModel[[i]]@fit$LLH,length(GoodModel[[i]]@fit$coef),i,do.call(paste, c(as.list(names(GoodModel[[i]]@fit$coef)), sep="-")))
       AICWithParam <- rbind(AICWithParam,temp)
@@ -91,87 +102,190 @@ WaveletGARCHFore<-function(series,filtern,level,nofore)
     return( NULL )
   }
 
-
-dpoints<-length(series)
-w<-matrix(ncol=level, nrow= dpoints)
-v<-matrix(ncol=1,nrow = dpoints)
-nfor<-nofore
-
-
-dwt<-modwt(X=series, filter=filtern, n.levels=level)
-
-v[,1]<-dwt@V[[level]]
-
-for(i in (1:(level)))
-{
-
-  w[,i]<-dwt@W[[i]]
-
-}
-
-total<-cbind(w,v)
-
-deco<-{}
-for(i in 1:(level+1))
-
-{
-
-  ARCHLMOrigSeries <- as.numeric(ArchTest(total[,i])$p.value)
+  }
+  dpoints<-length(series)
+  w<-matrix(ncol=level, nrow= dpoints)
+  v<-matrix(ncol=1,nrow = dpoints)
+  nfor<-nofore
 
 
-  assign("tsrss",as.list(total[,i]),envir = environment())
-  
-  ARCHLMCutoff<-0.05
-  rrow<-NROW(tsrss)
+  dwt<-modwt(X=series, filter=filtern, n.levels=level)
 
-  if(ARCHLMOrigSeries < ARCHLMCutoff)
+  v[,1]<-dwt@V[[level]]
 
+  for(i in (1:(level)))
   {
 
-
-    garch.auto <-  garchAuto(tsrss,min.order=c(0,0,1,0),
-                             max.order=c(MaxARParam=2,MaxMAParam=3,MaxAR_ARCH=2,MaxMA_ARCH=1),
-                             cond.dists="snorm",#"sged", "snorm", "ged", "std", "sstd","snig","QMLE"
-                             arma.sum=c(0,1e9),
-                             cores=4,
-                             ic="BIC")
-
-    garchfore<-ugarchforecast(garch.auto, n.ahead=nfor)
-    deco[flag]<-as.data.frame(garchfore@forecast$seriesFor)
-
-    flag=flag+1
+    w[,i]<-dwt@W[[i]]
 
   }
 
-  else
+  total<-cbind(w,v)
+
+  deco<-{}
+  for(i in 1:(level+1))
 
   {
 
-    arima.auto<-auto.arima(total[,i])
+    ARCHLMOrigSeries <- as.numeric(ArchTest(total[,i])$p.value)
 
-    deco[flag]<-as.data.frame((forecast(arima.auto, h=nfor,level=level))$mean)
-    flag=flag+1
+
+    assign("tsrss",as.list(total[,i]),envir = environment())
+
+    ARCHLMCutoff<-0.05
+    rrow<-NROW(tsrss)
+
+    if(ARCHLMOrigSeries < ARCHLMCutoff)
+
+    {
+
+
+      garch.auto <-  garchAuto(tsrss,min.order=c(0,0,1,0),
+                               max.order=c(MaxARParam=2,MaxMAParam=3,MaxAR_ARCH=2,MaxMA_ARCH=1),
+                               cond.dists="snorm",#"sged", "snorm", "ged", "std", "sstd","snig","QMLE"
+                               arma.sum=c(0,1e9),
+                               cores=4,
+                               ic="BIC")
+
+      if(dflag==-1)
+      {
+        arima.auto<-auto.arima(total[,i])
+
+        deco[flag]<-as.data.frame((forecast(arima.auto, h=nfor,level=level))$mean)
+        coeff<-arima.auto$coef
+        sig<-arima.auto$sigma2
+        ai<-arima.auto$aic
+        aii<-arima.auto$aicc
+        bi<-arima.auto$bic
+        orders<-arimaorder(arima.auto)
+        arima.obj<-new("autoarima",coefficient=coeff,sigma2=sig,aic=ai,aicc=aii,bic=bi,order=orders)
+        mod[flag]="Auto Arima"
+
+        modell<-c(modell,arima.obj)
+        flag=flag+1
+        dflag=0
+
+      }
+      else
+      {
+        garchfore<-ugarchforecast(garch.auto, n.ahead=nfor)
+        deco[flag]<-as.data.frame(garchfore@forecast$seriesFor)
+        mod[flag]="auto garch"
+
+        modell<-c(modell,garch.auto)
+        flag=flag+1
+
+      }
+
+
+
+
+
+    }
+
+    else
+
+    {
+
+      arima.auto<-auto.arima(total[,i])
+
+      deco[flag]<-as.data.frame((forecast(arima.auto, h=nfor,level=level))$mean)
+      coeff<-arima.auto$coef
+      sig<-arima.auto$sigma2
+      ai<-arima.auto$aic
+      aii<-arima.auto$aicc
+      bi<-arima.auto$bic
+      orders<-arimaorder(arima.auto)
+      arima.obj<-new("autoarima",coefficient=coeff,sigma2=sig,aic=ai,aicc=aii,bic=bi,order=orders)
+      mod[flag]="Auto Arima"
+
+      modell<-c(modell,arima.obj)
+      flag=flag+1
+
+    }
+
 
   }
 
+  for(i in 1:level)
+  {
+
+    dwt@W[[i]]<-as.matrix(unlist(deco[i]))
+
+  }
+
+  dwt@V[[level]]<-as.matrix(unlist(deco[level+1]))
+
+  forecastobject<-imodwt(dwt)
+
+  forecastobject<-as.matrix(forecastobject)
+
+  colnames(forecastobject)<-"Forecast Values"
+
+  rownames(forecastobject)<-c(1:length(forecastobject))
+
+  reslt<-list(r1=forecastobject,r2=mod,r3=modell,r4=level+1)
+  class(reslt)<-"WaveletGARCHFore"
+
+  return(reslt)
 
 }
 
-for(i in 1:level)
+
+
+print.WaveletGARCHFore<-function(x,...)
 {
 
-  dwt@W[[i]]<-as.matrix(unlist(deco[i]))
+  cat("                          **************************************\n")
+  cat("                          *         Wavelet GARCH Results      *\n")
+  cat("                          **************************************\n")
+  cat("\n")
+
+  cr1<-x$r1
+  cr2<-x$r2
+  cr3<-x$r3
+  cr4<-x$r4
+
+  cat("\n")
+
+  cat("         Models used for differnt wavelet coefficients are \n\n")
+
+  for (i in 1:cr4)
+  {
+
+    if(i==cr4)
+    {
+      cat("         For V",i-1,"model selected is: \n")
+      cat("         -----------------------------------------------\n")
+      cat("                          ",cr2[i])
+      cat("\n")
+      cat("         -----------------------------------------------\n")
+      cat("\n")
+      print(cr3[i])
+
+    }
+
+    else
+    {
+      cat("         For W",i,"model selected is: \n")
+      cat("         -----------------------------------------------\n")
+      cat("                          ",cr2[i])
+      cat("\n")
+      cat("         -----------------------------------------------\n")
+      cat("\n")
+      print(cr3[i])
+
+    }
+  }
+
+  cat("         -----------------------------------------------\n")
+  cat("                       List of Forecast Values")
+  cat("\n")
+  cat("         -----------------------------------------------\n")
+  cat("\n")
+
+  print(cr1)
 
 }
 
-dwt@V[[level]]<-as.matrix(unlist(deco[level+1]))
 
-forecastobject<-imodwt(dwt)
-
-forecastobject<-as.matrix(forecastobject)
-
-colnames(forecastobject)<-"Forecast Values"
-
-return(forecastobject)
-
-}

@@ -15,8 +15,10 @@ WaveletGARCHFit<-function(series,filtern,level)
   ClusterExportData <- c("tsrss")
   series<-as.matrix(series)
   tsrss<-NULL
+  dflag<-0
+  mod<-rep(c("no"),times=level+1)
 
-
+  modell<-{}
 
   ##############################################
   #         Fitting Auto GARCH                 #
@@ -75,26 +77,38 @@ WaveletGARCHFit<-function(series,filtern,level)
 
 
     AICWithParam <- NULL
-    for(i in 1:length(GoodModel))
-    {
-      temp <- data.frame(infocriteria(GoodModel[[i]])[1,],GoodModel[[i]]@fit$LLH,length(GoodModel[[i]]@fit$coef),i,do.call(paste, c(as.list(names(GoodModel[[i]]@fit$coef)), sep="-")))
-      AICWithParam <- rbind(AICWithParam,temp)
-    }
 
-    colnames(AICWithParam) <- c("AIC","Likelihood",'NoofParams','SeqenceNumb','Model-Specificaion')
-    AICWithParamSorting <- AICWithParam[order(AICWithParam[,1],AICWithParam[,2],decreasing=FALSE),]
-    best.fit <- GoodModel[[AICWithParamSorting[1,4]]]
-    best.ic <- AICWithParamSorting[1,1]
 
-    if( best.ic < arma.sum[2] )
+    if(length(GoodModel)==0)
     {
 
-      return( best.fit )
+      dflag=-1
+      return(NULL)
     }
 
-    return( NULL )
+    else
+    {
+      for(i in 1:length(GoodModel))
+      {
+        temp <- data.frame(infocriteria(GoodModel[[i]])[1,],GoodModel[[i]]@fit$LLH,length(GoodModel[[i]]@fit$coef),i,do.call(paste, c(as.list(names(GoodModel[[i]]@fit$coef)), sep="-")))
+        AICWithParam <- rbind(AICWithParam,temp)
+      }
+
+      colnames(AICWithParam) <- c("AIC","Likelihood",'NoofParams','SeqenceNumb','Model-Specificaion')
+      AICWithParamSorting <- AICWithParam[order(AICWithParam[,1],AICWithParam[,2],decreasing=FALSE),]
+      best.fit <- GoodModel[[AICWithParamSorting[1,4]]]
+      best.ic <- AICWithParamSorting[1,1]
+
+      if( best.ic < arma.sum[2] )
+      {
+
+        return( best.fit )
+      }
+
+      return( NULL )
+    }
+
   }
-
 
   datapoints<-nrow(series)
   w<-matrix(ncol=level, nrow= datapoints)
@@ -123,8 +137,8 @@ WaveletGARCHFit<-function(series,filtern,level)
     resids<-wavrima$residuals
     ARCHLMOrigSeries <- as.numeric(ArchTest(resids)$p.value)
     assign("tsrss",as.list(total[,i]),envir = environment())
-  
-     ARCHLMCutoff<-0.05
+
+    ARCHLMCutoff<-0.05
     rrow<-NROW(tsrss)
 
 
@@ -142,15 +156,51 @@ WaveletGARCHFit<-function(series,filtern,level)
                                arma.sum=c(0,1e9),
                                cores=4,
                                ic="BIC")
-      decomposed[flag] <- as.data.frame(fitted(garch.auto)[,1],row.names = NULL)
-      flag=flag+1
 
+      if(dflag==-1)
+      {
+        arima.auto<-auto.arima(total[,i])
+        decomposed[flag]<-as.list(fitted(arima.auto))
+        coeff<-arima.auto$coef
+        sig<-arima.auto$sigma2
+        ai<-arima.auto$aic
+        aii<-arima.auto$aicc
+        bi<-arima.auto$bic
+        orders<-arimaorder(arima.auto)
+        arima.obj<-new("autoarima",coefficient=coeff,sigma2=sig,aic=ai,aicc=aii,bic=bi,order=orders)
+        mod[flag]="Auto Arima"
+
+        modell<-c(modell,arima.obj)
+        flag=flag+1
+        dflag=0
+
+      }
+      else
+      {
+        decomposed[flag] <- as.data.frame(fitted(garch.auto)[,1],row.names = NULL)
+        mod[flag]="Auto Garch"
+
+        modell<-c(modell,garch.auto)
+        flag=flag+1
+
+      }
     }
     else
     {
       arima.auto<-auto.arima(total[,i])
       decomposed[flag]<-as.list(fitted(arima.auto))
+      coeff<-arima.auto$coef
+      sig<-arima.auto$sigma2
+      ai<-arima.auto$aic
+      aii<-arima.auto$aicc
+      bi<-arima.auto$bic
+      orders<-arimaorder(arima.auto)
+      arima.obj<-new("autoarima",coefficient=coeff,sigma2=sig,aic=ai,aicc=aii,bic=bi,order=orders)
+      mod[flag]="Auto Arima"
+
+      modell<-c(modell,arima.obj)
       flag=flag+1
+
     }
   }
 
@@ -168,10 +218,73 @@ WaveletGARCHFit<-function(series,filtern,level)
 
   colnames(fittedobject)<-"Fitted Values"
 
+  rownames(fittedobject)<-c(1:length(fittedobject))
 
 
-  return(fittedobject)
+
+  reslt<-list(r1=fittedobject,r2=mod,r3=modell,r4=level+1)
+  class(reslt)<-"WaveletGARCHFit"
+
+  return(reslt)
 
 
 
 }
+
+
+print.WaveletGARCHFit<-function(x,...)
+{
+
+  cat("                          **************************************\n")
+  cat("                          *         Wavelet GARCH Results      *\n")
+  cat("                          **************************************\n")
+  cat("\n")
+
+  cr1<-x$r1
+  cr2<-x$r2
+  cr3<-x$r3
+  cr4<-x$r4
+
+  cat("\n")
+
+  cat("         Models used for differnt wavelet coefficients are \n\n")
+
+  for (i in 1:cr4)
+  {
+
+    if(i==cr4)
+    {
+      cat("         For V",i-1,"model selected is: \n")
+      cat("         -----------------------------------------------\n")
+      cat("                          ",cr2[i])
+      cat("\n")
+      cat("         -----------------------------------------------\n")
+      cat("\n")
+      print(cr3[i])
+
+    }
+
+    else
+    {
+    cat("         For W",i,"model selected is: \n")
+    cat("         -----------------------------------------------\n")
+    cat("                          ",cr2[i])
+    cat("\n")
+    cat("         -----------------------------------------------\n")
+    cat("\n")
+    print(cr3[i])
+
+    }
+  }
+
+  cat("         -----------------------------------------------\n")
+  cat("                       List of Fitted Values")
+  cat("\n")
+  cat("         -----------------------------------------------\n")
+  cat("\n")
+
+  print(cr1)
+
+}
+
+

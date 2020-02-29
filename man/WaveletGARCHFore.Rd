@@ -1,17 +1,21 @@
 \name{WaveletGARCHFore}
 \alias{WaveletGARCHFore}
+\alias{print.WaveletGARCHFore}
 \title{Forecasting by Wavelet-GARCH model}
 \description{
 Forecasting of Wavelet-GARCH model based on ARCH LM test.
 }
 \usage{
 WaveletGARCHFore(series,filtern,level,nofore)
+\method{print}{WaveletGARCHFore}(x,\dots)
 }
 \arguments{
   \item{series}{univariate time series}
   \item{filtern}{The name of wavelet filter}
   \item{level}{The level of wavelet decomposition}
   \item{nofore}{The lead period of forecast}
+   \item{x}{An object of WaveletGARCHFore}
+   \item{\dots}{Additional arguments if any}
      }
 \value{
     \item{forecastobject}{The forecasted values of the series by Waveetl-GARCH model}

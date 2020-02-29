@@ -1,16 +1,20 @@
 \name{WaveletGARCHFit}
 \alias{WaveletGARCHFit}
+\alias{print.WaveletGARCHFit}
 \title{Fitting of Wavelet-GARCH model}
 \description{
 Fitting of Wavelet-GARCH model based on ARCH LM test.
 }
 \usage{
 WaveletGARCHFit(series,filtern,level)
+\method{print}{WaveletGARCHFit}(x,\dots)
 }
 \arguments{
   \item{series}{univariate time series}
   \item{filtern}{The name of wavelet filter}
   \item{level}{The level of wavelet decomposition}
+  \item{x}{An object of WaveletGARCHFit}
+  \item{\dots}{Additional arguments if any}
      }
 \value{
     \item{fittedobject}{The fitted value of the series by Waveetl-GARCH model}
